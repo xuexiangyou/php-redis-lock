@@ -52,9 +52,11 @@ $config = [
         ],
         'db' => $db,
         'urlManager' => [
-            'enablePrettyUrl' => true,
-            'showScriptName' => false,
+            'enablePrettyUrl' => true,  //美化url==ture
+            'enableStrictParsing' => false,  //不启用严格解析
+            'showScriptName' => false,   //隐藏index.php
             'rules' => [
+                '<controller:server>/<action:\w+>/<rpctoken:.+>' => '<controller>/<action>',
             ],
         ],
     ],
