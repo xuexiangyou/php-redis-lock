@@ -7,7 +7,7 @@
 
 namespace app\commands;
 
-use app\components\redis\RedisDistributedLock;
+use Yii;
 use yii\console\Controller;
 use yii\console\ExitCode;
 
@@ -26,16 +26,93 @@ class HelloController extends Controller
      * @param string $message the message to be echoed.
      * @return int Exit code
      */
-    public function actionIndex()
+    public function actionIndex($message = 'hello world')
     {
-        $n = 500;
-        $redis = \Yii::$app->redis;
-        $obj = new RedisDistributedLock($redis, 'test');
-        for ($i = 0; $i <= 10; $i++) {
-            $unLockIdentify = $obj->acquire();
-            var_dump($unLockIdentify);
-            $obj->release($unLockIdentify);
-            echo $n--;
+        echo $message . "\n";
+        return ExitCode::OK;
+    }
+
+    public function actionCreateFile()
+    {
+        $fp = fopen('test.csv','a');
+        $time = time();
+        // 处理内容
+        $content = '';
+        for ($i = 1; $i <= 1000000; $i++) {
+            $content .= ($time + $i) . rand(0, 9) . PHP_EOL;
         }
+        // 写入并关闭资源
+        fwrite($fp, $content);
+        fclose($fp);
+        exit;
+    }
+
+    public function actionReadFile()
+    {
+        ini_set('memory_limit', '-1');
+        $startTime = microtime(true);
+
+        $field = ['mobile'];
+
+        $result = $this->readCsv();
+        $result = array_unique($result);
+
+        $num = 10;
+
+        $pageSize = ceil(count($result) / $num);
+        $ids = [];
+
+        for ($i = 0; $i < $num; $i++) {
+            $value = array_slice($result, $i * $pageSize, $pageSize);
+            //echo count($value) . "\n";
+            $ids[] = $pid = pcntl_fork();
+            if ($pid == 0) {
+                $command = Yii::$app->db->createCommand();
+                $childPageSize = 100;
+                $childPage = ceil(count($value) / $childPageSize);
+                for ($j = 0; $j < $childPage; $j++) {
+                    $data = [];
+                    $childValue = array_slice($value, $j * $childPageSize, $childPageSize);
+                    foreach ($childValue as $item) {
+                        $data[] = [
+                            'mobile' => trim($item)
+                        ];
+                    }
+                    $command->batchInsert("cc_phone", $field, $data)->execute();
+                }
+                exit;
+            }
+        }
+        foreach ($ids as $k => $pid) {
+            if ($pid) {
+                pcntl_waitpid($pid, $status);
+            }
+        }
+        $endTime = microtime(true);
+        $runTime = ($endTime-$startTime)*1000 . ' ms';
+        echo "运行时间:" . $runTime;
+        exit;
+    }
+
+    private function readCsv()
+    {
+        $result = [];
+        $handle = fopen("test.csv", 'rb');
+        while (feof($handle)===false) {
+            # code...
+            $result[] = fgets($handle);
+        }
+        fclose($handle);
+        return $result;
+    }
+
+    private function readYieldCvs()
+    {
+        $handle = fopen("test.csv", 'rb');
+        while (feof($handle)===false) {
+            # code...
+            yield fgets($handle);
+        }
+        fclose($handle);
     }
 }
